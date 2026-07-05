@@ -148,4 +148,53 @@ final class LauncherPresetTests: XCTestCase {
         let launcher = LauncherType.steam
         XCTAssertEqual(launcher.id, launcher.rawValue)
     }
+
+    // MARK: - recommendedWinetricksVerbs
+
+    func testSteamPresetRecommendsSteamAndBaseline() {
+        let verbs = LauncherType.steam.recommendedWinetricksVerbs()
+
+        // The Steam self-installing verb must be present.
+        XCTAssertTrue(verbs.contains("steam"), "Steam preset should include the `steam` winetricks verb")
+
+        // Baseline VC runtimes should be installed for any launcher.
+        XCTAssertTrue(verbs.contains("vcrun2013"))
+        XCTAssertTrue(verbs.contains("vcrun2022"))
+        XCTAssertTrue(verbs.contains("corefonts"))
+        XCTAssertTrue(verbs.contains("d3dcompiler_47"))
+    }
+
+    func testAllLaunchersShareTheSameBaseline() {
+        // Every launcher should at least install the VC2013 + corefonts baseline.
+        for launcher in LauncherType.allCases {
+            let verbs = launcher.recommendedWinetricksVerbs()
+            XCTAssertTrue(verbs.contains("vcrun2013"), "\(launcher.rawValue) should install vcrun2013")
+            XCTAssertTrue(verbs.contains("vcrun2022"), "\(launcher.rawValue) should install vcrun2022")
+            XCTAssertTrue(verbs.contains("corefonts"), "\(launcher.rawValue) should install corefonts")
+        }
+    }
+
+    func testOnlySteamAndUbisoftSupportAutoInstall() {
+        // Only these two launchers have official winetricks verbs that
+        // download and install the launcher .exe automatically.
+        XCTAssertTrue(LauncherType.steam.supportsAutoInstall)
+        XCTAssertTrue(LauncherType.ubisoft.supportsAutoInstall)
+
+        XCTAssertFalse(LauncherType.epicGames.supportsAutoInstall)
+        XCTAssertFalse(LauncherType.eaApp.supportsAutoInstall)
+        XCTAssertFalse(LauncherType.battleNet.supportsAutoInstall)
+        XCTAssertFalse(LauncherType.rockstar.supportsAutoInstall)
+        XCTAssertFalse(LauncherType.paradox.supportsAutoInstall)
+    }
+
+    func testSteamIsTheOnlyPresetWithSteamVerb() {
+        // No other launcher should collide with the Steam self-install verb.
+        for launcher in LauncherType.allCases where launcher != .steam {
+            let verbs = launcher.recommendedWinetricksVerbs()
+            XCTAssertFalse(
+                verbs.contains("steam"),
+                "\(launcher.rawValue) should not include the `steam` verb"
+            )
+        }
+    }
 }

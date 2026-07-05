@@ -107,12 +107,12 @@ struct ContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $showBottleCreation) {
-            BottleCreationView(newlyCreatedBottleURL: $newlyCreatedBottleURL)
-        }
-        .sheet(isPresented: $showSetup) {
-            SetupView(showSetup: $showSetup, firstTime: false)
-        }
+        .modifier(BottleCreationSheetsModifier(
+            showBottleCreation: $showBottleCreation,
+            showSetup: $showSetup,
+            newlyCreatedBottleURL: $newlyCreatedBottleURL,
+            setupSheetBinding: bottleSetupSheetBinding
+        ))
         .sheet(item: $openedFileURL) { url in
             FileOpenView(
                 fileURL: url,
@@ -296,6 +296,17 @@ struct ContentView: View {
 // MARK: - Process Close Confirmation
 
 extension ContentView {
+    /// Binding for the launcher-preset setup progress sheet. Reflects
+    /// `BottleVM.shared.bottleSetupState` presence.
+    var bottleSetupSheetBinding: Binding<Bool> {
+        Binding(
+            get: { bottleVM.bottleSetupState != nil },
+            set: { newValue in
+                if !newValue { bottleVM.bottleSetupState = nil }
+            }
+        )
+    }
+
     @MainActor
     func showProcessCloseAlert(for bottle: Bottle) {
         let checkbox = NSButton(
