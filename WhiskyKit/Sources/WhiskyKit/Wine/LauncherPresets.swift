@@ -326,9 +326,11 @@ public enum LauncherType: String, Codable, CaseIterable, Sendable, Identifiable 
         // Launcher-specific extras
         switch self {
         case .steam:
-            // The `steam` winetricks verb downloads SteamSetup.exe and installs
-            // the Steam client inside the bottle automatically.
-            return baseline + ["steam"]
+            // Steam is installed via `autoInstallURL` (downloads SteamSetup.exe
+            // and runs it with `/S` for silent install) instead of the winetricks
+            // `steam` verb. The verb hangs at the GUI installer (~10 min timeout)
+            // because nobody can click "Next" inside a headless Wine prefix.
+            return baseline
         case .epicGames:
             // No official winetricks verb for the Epic Games Launcher; baseline
             // runtime is what's needed. User runs EpicInstaller.exe manually.
@@ -370,18 +372,22 @@ public enum LauncherType: String, Codable, CaseIterable, Sendable, Identifiable 
     }
 
     /// URL of the launcher installer that the post-creation pipeline should
-    /// download and run automatically inside the bottle, when the launcher
-    /// does not have a native winetricks verb. `nil` for launchers that are
-    /// either auto-installed via winetricks (Steam, Ubisoft) or have no
-    /// known installer URL.
+    /// download and run automatically inside the bottle. Used for launchers
+    /// where the winetricks verb either doesn't exist or hangs (Steam's GUI
+    /// installer). `nil` for launchers with a working winetricks verb
+    /// (`ubisoftconnect`) or no known installer URL.
     public var autoInstallURL: URL? {
         switch self {
+        case .steam:
+            // Valve's official SteamSetup.exe. Runs with `/S` for silent install
+            // (the winetricks `steam` verb hangs because it can't click Next).
+            URL(string: "https://steamcdn-a.akamaihd.net/client/installer/SteamSetup.exe")
         case .epicGames:
             // Epic Games Launcher installer — official launcher CDN.
             // The pipeline downloads this .msi and runs `msiexec /i` in Wine.
             URL(string: "https://launcher-public-service-prod06.ol.epicgames.com"
                 + "/launcher/api/installer/download/EpicGamesLauncherInstaller.msi")
-        case .steam, .ubisoft, .eaApp, .battleNet, .rockstar, .paradox:
+        case .ubisoft, .eaApp, .battleNet, .rockstar, .paradox:
             nil
         }
     }

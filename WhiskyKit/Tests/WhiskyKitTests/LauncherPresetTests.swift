@@ -154,8 +154,13 @@ final class LauncherPresetTests: XCTestCase {
     func testSteamPresetRecommendsSteamAndBaseline() {
         let verbs = LauncherType.steam.recommendedWinetricksVerbs()
 
-        // The Steam self-installing verb must be present.
-        XCTAssertTrue(verbs.contains("steam"), "Steam preset should include the `steam` winetricks verb")
+        // Steam is NOT in the verbs list anymore — its GUI installer hangs in
+        // headless Wine. Steam is installed via `autoInstallURL` with the
+        // `/S` silent flag instead. See `testSteamHasAutoInstallURL`.
+        XCTAssertFalse(
+            verbs.contains("steam"),
+            "Steam preset should NOT include the `steam` verb (it hangs); use autoInstallURL instead"
+        )
 
         // Baseline VC runtimes should be installed for any launcher.
         XCTAssertTrue(verbs.contains("vcrun2013"))
@@ -191,13 +196,24 @@ final class LauncherPresetTests: XCTestCase {
 
     func testEpicHasAutoInstallURL() {
         // Epic ships a custom installer URL pointing at the official
-        // launcher CDN. Steam/Ubisoft do not need this because they have a
-        // winetricks verb that does the download.
+        // launcher CDN. Steam too (uses SteamSetup.exe with /S silent flag).
+        // Ubisoft does not need this because it has a winetricks verb
+        // (`ubisoftconnect`) that works headlessly.
         XCTAssertNotNil(LauncherType.epicGames.autoInstallURL)
-        XCTAssertNil(LauncherType.steam.autoInstallURL)
+        XCTAssertNotNil(LauncherType.steam.autoInstallURL)
         XCTAssertNil(LauncherType.ubisoft.autoInstallURL)
         XCTAssertNil(LauncherType.eaApp.autoInstallURL)
         XCTAssertNil(LauncherType.battleNet.autoInstallURL)
+    }
+
+    func testSteamAutoInstallURLPointsToValveCDN() {
+        // Sanity check that the Steam auto-install URL is the official Valve
+        // CDN endpoint and resolves to a .exe installer (so the pipeline runs
+        // it with the `/S` silent flag instead of msiexec).
+        let url = LauncherType.steam.autoInstallURL
+        XCTAssertNotNil(url)
+        XCTAssertEqual(url?.pathExtension.lowercased(), "exe")
+        XCTAssertEqual(url?.host, "steamcdn-a.akamaihd.net")
     }
 
     func testSteamIsTheOnlyPresetWithSteamVerb() {
