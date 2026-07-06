@@ -27,43 +27,55 @@ struct BottleCreationView: View {
     @State private var newBottleURL: URL = UserDefaults.standard.url(forKey: "defaultBottleLocation")
         ?? BottleData.defaultBottleDir
     @State private var nameValid: Bool = false
+    /// Selected launcher preset; `nil` means a plain custom bottle.
+    @State private var selectedLauncher: LauncherType?
+    /// Tracks the expanded state of the per-launcher dependencies list.
+    @State private var dependenciesExpanded: Bool = true
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            Form {
-                TextField("create.name", text: $newBottleName)
-                    .onChange(of: newBottleName) { _, name in
-                        nameValid = !name.isEmpty
-                    }
-                    .accessibilityIdentifier("create.nameField")
+            VStack(spacing: 0) {
+                launcherTabBar
 
-                Picker("create.win", selection: $newBottleVersion) {
-                    ForEach(WinVersion.allCases.reversed(), id: \.self) {
-                        Text($0.pretty())
-                    }
-                }
+                Form {
+                    TextField("create.name", text: $newBottleName)
+                        .onChange(of: newBottleName) { _, name in
+                            nameValid = !name.isEmpty
+                        }
+                        .accessibilityIdentifier("create.nameField")
 
-                ActionView(
-                    text: "create.path",
-                    subtitle: newBottleURL.prettyPath(),
-                    actionName: "create.browse"
-                ) {
-                    let panel = NSOpenPanel()
-                    panel.canChooseFiles = false
-                    panel.canChooseDirectories = true
-                    panel.allowsMultipleSelection = false
-                    panel.canCreateDirectories = true
-                    panel.directoryURL = BottleData.containerDir
-                    panel.begin { result in
-                        if result == .OK, let url = panel.urls.first {
-                            newBottleURL = url
+                    Picker("create.win", selection: $newBottleVersion) {
+                        ForEach(WinVersion.allCases.reversed(), id: \.self) {
+                            Text($0.pretty())
                         }
                     }
+
+                    ActionView(
+                        text: "create.path",
+                        subtitle: newBottleURL.prettyPath(),
+                        actionName: "create.browse"
+                    ) {
+                        let panel = NSOpenPanel()
+                        panel.canChooseFiles = false
+                        panel.canChooseDirectories = true
+                        panel.allowsMultipleSelection = false
+                        panel.canCreateDirectories = true
+                        panel.directoryURL = BottleData.containerDir
+                        panel.begin { result in
+                            if result == .OK, let url = panel.urls.first {
+                                newBottleURL = url
+                            }
+                        }
+                    }
+
+                    if let launcher = selectedLauncher {
+                        launcherInfoSection(for: launcher)
+                    }
                 }
+                .formStyle(.grouped)
             }
-            .formStyle(.grouped)
             .navigationTitle("create.title")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -85,16 +97,110 @@ struct BottleCreationView: View {
             .onSubmit {
                 submit()
             }
+            .onChange(of: selectedLauncher) { _, launcher in
+                // Auto-default the bottle name to the launcher's display name
+                // when the user picks a preset and hasn't typed anything yet.
+                if let launcher, newBottleName.isEmpty {
+                    newBottleName = launcher.displayName
+                    nameValid = true
+                }
+            }
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(width: ViewWidth.small)
+    }
+
+    /// Top bar with "Personalizada" + one tab per launcher.
+    private var launcherTabBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                launcherTab(.none, label: "Personalizada")
+                ForEach(LauncherType.allCases) { launcher in
+                    launcherTab(launcher, label: launcher.displayName)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .background(.thinMaterial)
+    }
+
+    /// Single segmented-style tab button for either "Personalizada" (`nil`)
+    /// or a specific launcher preset.
+    private func launcherTab(_ launcher: LauncherType?, label: String) -> some View {
+        let isSelected = (selectedLauncher?.id ?? "") == (launcher?.id ?? "")
+        return Button {
+            selectedLauncher = launcher
+            if launcher == nil { newBottleName = ""; nameValid = false }
+        } label: {
+            Text(label)
+                .font(.caption)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Per-launcher info section shown inside the form when a preset is active.
+    @ViewBuilder
+    private func launcherInfoSection(for launcher: LauncherType) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(launcher.fixesDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if launcher.supportsAutoInstall {
+                    Label(
+                        "Installará automáticamente: \(launcher.displayName)",
+                        systemImage: "checkmark.seal.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                } else {
+                    Label(
+                        "Deberás instalar \(launcher.displayName) manualmente tras la bottle",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
+
+                // Always-expanded, click-to-collapse list (avoids DisclosureGroup
+                // behavior bugs inside grouped Forms on macOS 26).
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { dependenciesExpanded },
+                        set: { dependenciesExpanded = $0 }
+                    )
+                ) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(launcher.recommendedWinetricksVerbs(), id: \.self) { verb in
+                            Text("• \(verb)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    Text("Dependencias (\(launcher.recommendedWinetricksVerbs().count))")
+                }
+                .font(.caption)
+            }
+        } header: {
+            Text("Preset: \(launcher.displayName)")
+        }
     }
 
     func submit() {
         newlyCreatedBottleURL = BottleVM.shared.createNewBottle(
             bottleName: newBottleName,
             winVersion: newBottleVersion,
-            bottleURL: newBottleURL
+            bottleURL: newBottleURL,
+            launcherPreset: selectedLauncher
         )
         dismiss()
     }

@@ -298,4 +298,91 @@ public enum LauncherType: String, Codable, CaseIterable, Sendable, Identifiable 
             "Fixes recursive resource lookup bugs and initialization"
         }
     }
+
+    /// Recommended winetricks verbs to install for this launcher.
+    ///
+    /// Returns the base Microsoft runtime dependencies (VC++ runtimes, fonts,
+    /// RichEdit, DirectX compilers) that most launchers and their games need
+    /// to function correctly under Wine. Mirrors the dependency set that
+    /// CrossOver installs in its own "Steam" and "Epic Games" bottles.
+    ///
+    /// - Returns: Array of winetricks verb names (e.g. `["vcrun2022", "corefonts"]`)
+    public func recommendedWinetricksVerbs() -> [String] {
+        // Shared baseline: the Microsoft runtime/font stack CrossOver installs
+        // for any modern launcher bottle.
+        let baseline: [String] = [
+            "vcrun2013",        // MS Visual C++ 2013 (32-bit + 64-bit)
+            "vcrun2022",        // MS Visual C++ 2015-2022 (latest 32-bit + 64-bit)
+            "corefonts",        // Arial, Times New Roman, Courier New, Verdana, etc.
+            "riched20",         // MS RichEdit Control 2.0
+            "riched30",         // MS RichEdit Control 3.0 (also installs msls31)
+            "msls31",           // MS Line Services (riched30 dep, but explicit for safety)
+            "d3dcompiler_47",   // MS d3dcompiler_47.dll (D3D shader compiler, 32/64-bit)
+            "d3dcompiler_43",   // MS d3dcompiler_43.dll (legacy D3D shader compiler)
+            "d3dx9",            // DirectX 9 libs (d3dx9_??.dll)
+            "d3dx11_43"         // DirectX 11 libs (d3dx11_43.dll)
+        ]
+
+        // Launcher-specific extras
+        switch self {
+        case .steam:
+            // The `steam` winetricks verb downloads SteamSetup.exe and installs
+            // the Steam client inside the bottle automatically.
+            return baseline + ["steam"]
+        case .epicGames:
+            // No official winetricks verb for the Epic Games Launcher; baseline
+            // runtime is what's needed. User runs EpicInstaller.exe manually.
+            return baseline
+        case .eaApp:
+            // EA App (formerly Origin) is an Electron app; baseline runtime +
+            // some legacy media foundation to prevent crashes during install.
+            return baseline
+        case .battleNet:
+            // Battle.net corrects a font rendering issue with baseline.
+            return baseline
+        case .rockstar:
+            // Rockstar Launcher REQUIRES DXVK for its logo screen to render.
+            // DXVK enablement is applied separately via `applyLauncherFixes`
+            // (autoEnableDXVK = true); the verbs here are runtime deps only.
+            return baseline
+        case .ubisoft:
+            return baseline
+        case .paradox:
+            return baseline
+        }
+    }
+
+    /// Whether this launcher has an official winetricks verb (`steam`,
+    /// `ubisoftconnect`) that installs the launcher .exe automatically.
+    ///
+    /// When `true`, `recommendedWinetricksVerbs()` already includes that verb
+    /// and the user does not need to download the installer manually after
+    /// bottle creation. When `false`, the launcher's `.exe` must be installed
+    /// by the user after the bottle is ready — unless a custom auto-install
+    /// flow is defined in `BottleVM+LauncherPreset.swift` (e.g. Epic Games).
+    public var supportsAutoInstall: Bool {
+        switch self {
+        case .steam, .ubisoft, .epicGames:
+            true
+        case .eaApp, .battleNet, .rockstar, .paradox:
+            false
+        }
+    }
+
+    /// URL of the launcher installer that the post-creation pipeline should
+    /// download and run automatically inside the bottle, when the launcher
+    /// does not have a native winetricks verb. `nil` for launchers that are
+    /// either auto-installed via winetricks (Steam, Ubisoft) or have no
+    /// known installer URL.
+    public var autoInstallURL: URL? {
+        switch self {
+        case .epicGames:
+            // Epic Games Launcher installer — official launcher CDN.
+            // The pipeline downloads this .msi and runs `msiexec /i` in Wine.
+            URL(string: "https://launcher-public-service-prod06.ol.epicgames.com"
+                + "/launcher/api/installer/download/EpicGamesLauncherInstaller.msi")
+        case .steam, .ubisoft, .eaApp, .battleNet, .rockstar, .paradox:
+            nil
+        }
+    }
 }
