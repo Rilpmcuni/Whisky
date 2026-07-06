@@ -45,8 +45,50 @@ struct WinetricksCategory {
 }
 
 class Winetricks {
-    static let winetricksURL: URL = WhiskyWineInstaller.libraryFolder
-        .appending(path: "winetricks")
+    /// Path to the winetricks binary to use. Prefers the one shipped in the
+    /// Whisky runtime folder; if missing (e.g. dev builds that didn't package
+    /// it), falls back to a system install (Homebrew at
+    /// `/opt/homebrew/bin/winetricks`, or anywhere in PATH).
+    static let winetricksURL: URL = {
+        let bundled = WhiskyWineInstaller.libraryFolder.appending(path: "winetricks")
+        if FileManager.default.isExecutableFile(atPath: bundled.path(percentEncoded: false)) {
+            return bundled
+        }
+        // Fall back to Homebrew's winetricks (installed via `brew install winetricks`).
+        let homebrew = URL(fileURLWithPath: "/opt/homebrew/bin/winetricks")
+        if FileManager.default.isExecutableFile(atPath: homebrew.path(percentEncoded: false)) {
+            return homebrew
+        }
+        // Last resort: search PATH via /usr/bin/env.
+        if let resolved = findInPath("winetricks") {
+            return resolved
+        }
+        // Default to the bundled path so error messages stay consistent
+        // (and surface the absence to the user when they try to install).
+        return bundled
+    }()
+
+    /// Locates an executable in `$PATH` via `/usr/bin/which`. Returns its URL
+    /// when found, `nil` otherwise.
+    private static func findInPath(_ name: String) -> URL? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = [name]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch { return nil }
+        guard process.terminationStatus == 0 else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let path = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let path, !path.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: path)
+        return FileManager.default.isExecutableFile(atPath: url.path(percentEncoded: false)) ? url : nil
+    }
 
     @MainActor
     static func runCommand(command: String, bottle: Bottle) async {

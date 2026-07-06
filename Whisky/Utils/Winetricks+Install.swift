@@ -107,6 +107,8 @@ extension Winetricks {
             "PATH": [
                 WhiskyWineInstaller.binFolder.path(percentEncoded: false),
                 resourcesURL.path(percentEncoded: false),
+                "/opt/homebrew/bin",
+                "/usr/local/bin",
                 "/usr/bin",
                 "/bin"
             ].joined(separator: ":"),

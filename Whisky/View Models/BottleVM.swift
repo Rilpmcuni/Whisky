@@ -182,6 +182,10 @@ final class BottleVM: ObservableObject {
                 loadBottles()
             }
 
+            // Mark the bottle as fully initialized so the UI stops showing it
+            // as in-flight (which disables all bottle actions and config).
+            createdBottle.inFlight = false
+
             persistBottleCreation(request: request)
             loadBottles()
             Telemetry.capture(.firstBottleCreated)

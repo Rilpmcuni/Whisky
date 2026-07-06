@@ -358,13 +358,31 @@ public enum LauncherType: String, Codable, CaseIterable, Sendable, Identifiable 
     /// When `true`, `recommendedWinetricksVerbs()` already includes that verb
     /// and the user does not need to download the installer manually after
     /// bottle creation. When `false`, the launcher's `.exe` must be installed
-    /// by the user after the bottle is ready.
+    /// by the user after the bottle is ready — unless a custom auto-install
+    /// flow is defined in `BottleVM+LauncherPreset.swift` (e.g. Epic Games).
     public var supportsAutoInstall: Bool {
         switch self {
-        case .steam, .ubisoft:
+        case .steam, .ubisoft, .epicGames:
             true
-        case .epicGames, .eaApp, .battleNet, .rockstar, .paradox:
+        case .eaApp, .battleNet, .rockstar, .paradox:
             false
+        }
+    }
+
+    /// URL of the launcher installer that the post-creation pipeline should
+    /// download and run automatically inside the bottle, when the launcher
+    /// does not have a native winetricks verb. `nil` for launchers that are
+    /// either auto-installed via winetricks (Steam, Ubisoft) or have no
+    /// known installer URL.
+    public var autoInstallURL: URL? {
+        switch self {
+        case .epicGames:
+            // Epic Games Launcher installer — official launcher CDN.
+            // The pipeline downloads this .msi and runs `msiexec /i` in Wine.
+            URL(string: "https://launcher-public-service-prod06.ol.epicgames.com"
+                + "/launcher/api/installer/download/EpicGamesLauncherInstaller.msi")
+        case .steam, .ubisoft, .eaApp, .battleNet, .rockstar, .paradox:
+            nil
         }
     }
 }

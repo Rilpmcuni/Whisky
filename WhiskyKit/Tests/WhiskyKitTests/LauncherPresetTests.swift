@@ -175,16 +175,29 @@ final class LauncherPresetTests: XCTestCase {
     }
 
     func testOnlySteamAndUbisoftSupportAutoInstall() {
-        // Only these two launchers have official winetricks verbs that
-        // download and install the launcher .exe automatically.
+        // Steam and Ubisoft have official winetricks verbs that download and
+        // install the launcher .exe automatically. Epic has a custom
+        // auto-install pipeline that downloads `EpicGamesLauncherInstaller.msi`
+        // from the official Epic CDN and runs it via `msiexec /i`.
         XCTAssertTrue(LauncherType.steam.supportsAutoInstall)
         XCTAssertTrue(LauncherType.ubisoft.supportsAutoInstall)
+        XCTAssertTrue(LauncherType.epicGames.supportsAutoInstall)
 
-        XCTAssertFalse(LauncherType.epicGames.supportsAutoInstall)
         XCTAssertFalse(LauncherType.eaApp.supportsAutoInstall)
         XCTAssertFalse(LauncherType.battleNet.supportsAutoInstall)
         XCTAssertFalse(LauncherType.rockstar.supportsAutoInstall)
         XCTAssertFalse(LauncherType.paradox.supportsAutoInstall)
+    }
+
+    func testEpicHasAutoInstallURL() {
+        // Epic ships a custom installer URL pointing at the official
+        // launcher CDN. Steam/Ubisoft do not need this because they have a
+        // winetricks verb that does the download.
+        XCTAssertNotNil(LauncherType.epicGames.autoInstallURL)
+        XCTAssertNil(LauncherType.steam.autoInstallURL)
+        XCTAssertNil(LauncherType.ubisoft.autoInstallURL)
+        XCTAssertNil(LauncherType.eaApp.autoInstallURL)
+        XCTAssertNil(LauncherType.battleNet.autoInstallURL)
     }
 
     func testSteamIsTheOnlyPresetWithSteamVerb() {

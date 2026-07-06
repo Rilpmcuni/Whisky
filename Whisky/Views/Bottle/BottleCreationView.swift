@@ -29,6 +29,8 @@ struct BottleCreationView: View {
     @State private var nameValid: Bool = false
     /// Selected launcher preset; `nil` means a plain custom bottle.
     @State private var selectedLauncher: LauncherType?
+    /// Tracks the expanded state of the per-launcher dependencies list.
+    @State private var dependenciesExpanded: Bool = true
 
     @Environment(\.dismiss) private var dismiss
 
@@ -167,7 +169,14 @@ struct BottleCreationView: View {
                     .foregroundStyle(.orange)
                 }
 
-                DisclosureGroup("Dependencias (\(launcher.recommendedWinetricksVerbs().count))") {
+                // Always-expanded, click-to-collapse list (avoids DisclosureGroup
+                // behavior bugs inside grouped Forms on macOS 26).
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { dependenciesExpanded },
+                        set: { dependenciesExpanded = $0 }
+                    )
+                ) {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(launcher.recommendedWinetricksVerbs(), id: \.self) { verb in
                             Text("• \(verb)")
@@ -176,6 +185,8 @@ struct BottleCreationView: View {
                         }
                     }
                     .padding(.top, 4)
+                } label: {
+                    Text("Dependencias (\(launcher.recommendedWinetricksVerbs().count))")
                 }
                 .font(.caption)
             }
